@@ -3,6 +3,7 @@
 import os
 import re
 import argparse
+import datetime
 from mutagen.easyid3 import EasyID3
 
 HOME = os.environ.get("HOME")
@@ -12,90 +13,93 @@ artist_regex = r"(?P<artist>.*)/(?P<album>.*)/(?P<track>\d*) - (?P<title>.*)\.(?
 playlist_url_filename = "playlist.url"
 
 def get_tags_from_filename(path, regex):
-	filename = os.path.basename(path)
+    filename = os.path.basename(path)
 
-	split_name = re.match(regex, filename)
-	
-	title = split_name.group('title')
-	artist = split_name.group('artist')
-	try:
-		queue_number = split_name.group('qn')
-	except IndexError:
-		queue_number = ''
-	try:
-		track_number = split_name.group('track')
-	except IndexError:
-		track_number = ''
-	try:
-		album = split_name.group('album')
-	except IndexError:
-		album = ''
+    split_name = re.match(regex, filename)
+    
+    title = split_name.group('title')
+    artist = split_name.group('artist')
+    try:
+        queue_number = split_name.group('qn')
+    except IndexError:
+        queue_number = ''
+    try:
+        track_number = split_name.group('track')
+    except IndexError:
+        track_number = ''
+    try:
+        album = split_name.group('album')
+    except IndexError:
+        album = ''
 
-	return {"queue_number": queue_number,
-			"track_number": track_number,
-			"title": title,
-			"album": album,
-			"artist": artist}
+    return {"queue_number": queue_number,
+            "track_number": track_number,
+            "title": title,
+            "album": album,
+            "artist": artist}
 
 
 def tag(file, regex=playlist_regex, title=None, track=None, album=None, artist=None, overwrite=False):
-	metatag = EasyID3(file)
+    file_mtime = os.path.getmtime(file)
+    print(file_mtime)
+    metatag = EasyID3(file)
 
-	auto_tag = get_tags_from_filename(file, regex)
-	if not title: title = auto_tag['title']
-	if not track: track = auto_tag['track_number']
-	if not album: album = auto_tag['album']
-	if not artist:artist= auto_tag['artist']
+    auto_tag = get_tags_from_filename(file, regex)
+    if not title: title = auto_tag['title']
+    if not track: track = auto_tag['track_number']
+    if not album: album = auto_tag['album']
+    if not artist:artist= auto_tag['artist']
 
-	metadata = {
-		'title': title,
-		'tracknumber': track,
-		'album': album,
-		'artist': artist
-	}
+    metadata = {
+        'title': title,
+        'tracknumber': track,
+        'album': album,
+        'artist': artist
+    }
 
-	print(metadata)
+    print(metadata)
 
-	for m in {md: val for md, val in metadata.items() if val}.keys():
-		metatag[m] = metadata[m]
-	metatag.save(v2_version=3)
+    for m in {md: val for md, val in metadata.items() if val}.keys():
+        metatag[m] = metadata[m]
+    metatag.save(v2_version=3)
+    os.utime(file, (file_mtime, file_mtime))
 
 
 
 def main(path, overwrite, regex, title=None, track=None, album=None, artist=None):
-	path = os.path.abspath(path)
-	if os.path.isdir(path):
-		if path == MUSIC_FOLDER:
-			playlists = [
-				folder for folder in os.listdir(path)
-				if os.isfile(os.path.join(path, folder, playlist_url_filename))
-			]
+    path = os.path.abspath(path)
+    if os.path.isdir(path):
+        if path == MUSIC_FOLDER:
+            playlists = [
+                folder for folder in os.listdir(path)
+                if os.isfile(os.path.join(path, folder, playlist_url_filename))
+            ]
 
-			for track in playlist:
-				main(os.path.join(path, track), overwrite, regex)
-		else:
-			for file in os.listdir(path):
-				main(os.path.join(path, file), overwrite, regex)
+            for track in playlist:
+                main(os.path.join(path, track), overwrite, regex)
+        else:
+            for file in os.listdir(path):
+                main(os.path.join(path, file), overwrite, regex)
 
-	else:
-		try:
-			tag(path, regex, title, track, album, artist)
-		except:
-			print("Invalid File, skipping...")
+    else:
+        try:
+            tag(path, regex, title, track, album, artist)
+        except:
+            print("Invalid File, skipping...")
 
 if __name__ == '__main__':
-	parser = argparse.ArgumentParser(description="Music tagger based on filename")
+    parser = argparse.ArgumentParser(description="Music tagger based on filename")
 
-	parser.add_argument('path', type=str, help="path to music file or music folder")
+    parser.add_argument('path', type=str, help="path to music file or music folder")
 
-	parser.add_argument('--format', type=str, help="naming format", default=playlist_regex)
-	parser.add_argument('--overwrite', help="overwrite tags if they already exist", default=False, action='store_true', required=False)
+    parser.add_argument('--format', type=str, help="naming format", default=playlist_regex)
+    parser.add_argument('--overwrite', help="overwrite tags if they already exist", default=False, action='store_true', required=False)
 
-	parser.add_argument('--title', type=str, help="song title", required=False)
-	parser.add_argument('--track', type=str, help="track number", required=False)
-	parser.add_argument('--album', type=str, help="album name", required=False)
-	parser.add_argument('--artist', type=str, help="artist name(s)", required=False)
+    parser.add_argument('--title', type=str, help="song title", required=False)
+    parser.add_argument('--track', type=str, help="track number", required=False)
+    parser.add_argument('--album', type=str, help="album name", required=False)
+    parser.add_argument('--artist', type=str, help="artist name(s)", required=False)
 
-	args = parser.parse_args()
-	path = args.path
-	main(path, args.overwrite, args.format, title=args.title, track=args.track, album=args.album, artist=args.artist)
+    args = parser.parse_args()
+    path = args.path
+    main(path, args.overwrite, args.format, title=args.title, track=args.track, album=args.album, artist=args.artist)
